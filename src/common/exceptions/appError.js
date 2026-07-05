@@ -1,11 +1,8 @@
-const appError = (
+const appError = (message, statusCode = 500) => {
+  return {
     message,
-    statusCode = 500
-) => {
-    return {
-        message,
-        statusCode
-    };
+    statusCode,
+  };
 };
 
 module.exports = appError;
