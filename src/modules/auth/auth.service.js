@@ -1,5 +1,6 @@
 const pool = require("../../config/db");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 const register = async (data) => {
   const existingUser = await pool.query("SELECT * FROM users WHERE email=$1", [
@@ -31,7 +32,55 @@ const register = async (data) => {
   return result.rows[0];
 };
 
+const login = async (data) => {
+  const result = await pool.query(
+    `
+    SELECT *
+    FROM users
+    WHERE email = $1
+    `,
+    [data.email],
+  );
+
+  const user = result.rows[0];
+
+  if (!user) {
+    throw new Error("Invalid credentials");
+  }
+
+  const isPasswordValid = await bcrypt.compare(
+    data.password,
+    user.password_hash,
+  );
+
+  if (!isPasswordValid) {
+    throw new Error("Invalid credentials");
+  }
+
+  const token = jwt.sign(
+    {
+      id: user.id,
+      role: user.role,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "7d",
+    },
+  );
+
+  return {
+    user: {
+      id: user.id,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      email: user.email,
+      role: user.role,
+    },
+    token,
+  };
+};
 
 module.exports = {
-  register
-}
+  register,
+  login,
+};

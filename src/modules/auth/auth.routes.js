@@ -10,5 +10,9 @@ router.post(
   validate(authValidation.registerSchema),
   authController.register,
 );
-
+router.post(
+  "/login",
+  validate(authValidation.loginSchema),
+  authController.login,
+);
 module.exports = router;
