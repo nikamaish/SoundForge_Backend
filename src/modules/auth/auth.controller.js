@@ -17,15 +17,27 @@ const login = async (req, res, next) => {
 
     res.cookie("accessToken", data.token, {
       httpOnly: true,
-      secure: false, 
+      secure: false,
       sameSite: "strict",
-      maxAge:60*60*1000,
+      maxAge: 60 * 60 * 1000,
     });
 
     return success(res, data.user, "Login successful");
   } catch (err) {
     next(err);
   }
+};
+
+const logout = (req, res) => {
+  res.clearCookie("accessToken");
+
+  return success(res, null, "Logged out successfully");
+};
+
+module.exports = {
+  register,
+  login,
+  logout,
 };
 
 module.exports = {
