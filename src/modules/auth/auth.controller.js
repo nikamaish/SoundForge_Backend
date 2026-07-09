@@ -15,14 +15,14 @@ const login = async (req, res, next) => {
   try {
     const data = await authService.login(req.body);
 
-    res.cookie("accessToken", token, {
+    res.cookie("accessToken", data.token, {
       httpOnly: true,
-      secure: false, // true in production with HTTPS
+      secure: false, 
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge:60*60*1000,
     });
 
-    return success(res, user, "Login successful");
+    return success(res, data.user, "Login successful");
   } catch (err) {
     next(err);
   }
