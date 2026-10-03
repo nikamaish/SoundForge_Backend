@@ -1,78 +1,86 @@
-const pool = require("../../config/db");
+
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const User = require("../../models/user.model");
 
 const register = async (data) => {
-  const existingUser = await pool.query("SELECT * FROM users WHERE email=$1", [
-    data.email,
-  ]);
+  const email = data.email.toLowerCase();
 
-  if (existingUser.rows.length) {
-    throw new Error("User already exists");
+  const existingUser = await User.findOne({ email });
+
+  if (existingUser) {
+    const error = new Error("Email is already registered");
+    error.statusCode = 409;
+    throw error;
   }
 
-  const hash = await bcrypt.hash(data.password, 10);
+  const passwordHash = await bcrypt.hash(data.password, 12);
 
-  const result = await pool.query(
-    `
-    INSERT INTO users
-    (
-        first_name,
-        last_name,
-        email,
-        password_hash,
-        role
-    )
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id, first_name, last_name, email, role
-    `,
-    [data.firstName, data.lastName, data.email, hash, data.role],
-  );
-  //INSERT only inserts the record. RETURNING allows us to immediately get the inserted row back without running another SELECT query.
-  return result.rows[0];
+  try {
+    const user = await User.create({
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email,
+      passwordHash,
+      role: "USER",
+    });
+
+    return {
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+    };
+  } catch (error) {
+    if (error.code === 11000) {
+      const duplicateError = new Error("Email is already registered");
+      duplicateError.statusCode = 409;
+      throw duplicateError;
+    }
+
+    throw error;
+  }
 };
 
 const login = async (data) => {
-  const result = await pool.query(
-    `
-    SELECT *
-    FROM users
-    WHERE email = $1
-    `,
-    [data.email],
-  );
+  const user = await User.findOne({
+    email: data.email.toLowerCase(),
+  }).select("+passwordHash");
 
-  const user = result.rows[0];
-
-  if (!user) {
-    throw new Error("Invalid credentials");
+  if (!user || !user.isActive) {
+    const error = new Error("Invalid email or password");
+    error.statusCode = 401;
+    throw error;
   }
 
-  const isPasswordValid = await bcrypt.compare(
+  const passwordMatches = await bcrypt.compare(
     data.password,
-    user.password_hash,
+    user.passwordHash
   );
 
-  if (!isPasswordValid) {
-    throw new Error("Invalid credentials");
+  if (!passwordMatches) {
+    const error = new Error("Invalid email or password");
+    error.statusCode = 401;
+    throw error;
   }
 
   const token = jwt.sign(
     {
-      id: user.id,
+      id: user._id.toString(),
       role: user.role,
     },
     process.env.JWT_SECRET,
     {
-      expiresIn: "10m",
-    },
+      expiresIn: process.env.JWT_EXPIRES_IN || "10m",
+    }
   );
 
   return {
     user: {
-      id: user.id,
-      firstName: user.first_name,
-      lastName: user.last_name,
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
       email: user.email,
       role: user.role,
     },
@@ -80,7 +88,26 @@ const login = async (data) => {
   };
 };
 
+const getCurrentUser = async (id) => {
+  const user = await User.findById(id);
+
+  if (!user || !user.isActive) {
+    const error = new Error("User not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return {
+    id: user._id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    role: user.role,
+  };
+};
+
 module.exports = {
   register,
   login,
+  getCurrentUser,
 };

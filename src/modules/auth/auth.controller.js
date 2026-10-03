@@ -1,13 +1,21 @@
+
 const authService = require("./auth.service");
 const { success } = require("../../common/utils/apiResponse");
+
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
+  path: "/",
+};
 
 const register = async (req, res, next) => {
   try {
     const user = await authService.register(req.body);
 
-    return success(res, user, "User registered successfully", 201);
-  } catch (err) {
-    next(err);
+    return success(res, user, "Registration successful", 201);
+  } catch (error) {
+    next(error);
   }
 };
 
@@ -16,31 +24,35 @@ const login = async (req, res, next) => {
     const data = await authService.login(req.body);
 
     res.cookie("accessToken", data.token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "strict",
-      maxAge: 60 * 60 * 1000,
+      ...cookieOptions,
+      maxAge: 10 * 60 * 1000,
     });
 
     return success(res, data.user, "Login successful");
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 };
 
 const logout = (req, res) => {
-  res.clearCookie("accessToken");
+  res.clearCookie("accessToken", cookieOptions);
 
-  return success(res, null, "Logged out successfully");
+  return success(res, null, "Logout successful");
+};
+
+const me = async (req, res, next) => {
+  try {
+    const user = await authService.getCurrentUser(req.user.id);
+
+    return success(res, user, "User fetched successfully");
+  } catch (error) {
+    next(error);
+  }
 };
 
 module.exports = {
   register,
   login,
   logout,
-};
-
-module.exports = {
-  register,
-  login,
+  me,
 };
